@@ -1,3 +1,218 @@
+# UXAA (User eXperience Account Abstraction) Technical Documentation
+
+## 1. Overview
+
+UXAA (User eXperience Account Abstraction) is a comprehensive solution built on the Solana blockchain, combining session keys (temporary keys) and account abstraction (AA) to significantly enhance user experience (UX) and security. This system allows users to execute transactions seamlessly without wallet pop-ups, using temporary and backup keys, along with customizable asset management, fee structures, and security policies.
+
+### System Architecture
+
+```mermaid
+flowchart TB
+    subgraph Off-chain
+        SDK[UXAA_SDK]
+        TempKeyManager[TempKeyManager]
+        UserAccountManager[UserAccountManager]
+        Client[Client Application]
+    end
+
+    subgraph On-chain
+        AA_Relay[AA Relay Program]
+        UserAccount[User Account Program]
+        Service[Service Program]
+        SPL[SPL Token Program]
+    end
+
+    Client --> SDK
+    SDK --> TempKeyManager
+    SDK --> UserAccountManager
+
+    TempKeyManager --> AA_Relay
+    UserAccountManager --> UserAccount
+    AA_Relay --> UserAccount
+    UserAccount --> Service
+    UserAccount --> SPL
+
+    subgraph Data_Structures
+        KeyMapping[KeyMapping]
+        FeePolicy[FeePolicy]
+        TokenFeePolicy[TokenFeePolicy]
+        SecurityPolicy[SecurityPolicy]
+    end
+
+    AA_Relay --> KeyMapping
+    AA_Relay --> FeePolicy
+    AA_Relay --> TokenFeePolicy
+    AA_Relay --> SecurityPolicy
+```
+
+## 2. Core Components
+
+### 2.1 On-chain Programs
+
+#### 2.1.1 AA Relay Program (`aa_relay`)
+
+Manages temporary and backup keys, transaction relays, fee structures, and security policies.
+
+**Key Functions:**
+- `register_temp_keys`
+- `revoke_temp_key`
+- `change_backup_key`
+- `relay_transaction`
+- `transfer_spl_token`
+- `set_fee_policy`
+- `set_token_fee_policy`
+- `set_security_policy`
+
+**Main Data Structures:**
+- `KeyMapping`
+- `FeePolicy`
+- `TokenFeePolicy`
+- `SecurityPolicy`
+
+#### 2.1.2 User Account Program (`user_account`)
+
+Handles asset management and transaction execution.
+
+**Key Functions:**
+- `initialize_user_account`
+- `execute_transaction`
+- `add_token_balance` (testing)
+- `add_sol_balance` (testing)
+
+**Main Data Structure:**
+- `UserAccountData`
+
+#### 2.1.3 Service Program (`service`)
+
+Example program to illustrate business logic handling.
+
+### 2.2 Off-chain SDK
+
+#### 2.2.1 UXAA_SDK
+
+Primary interface providing access to all system functionalities.
+
+**Key Methods:**
+- `initializeUserAccount`
+- `registerTempKeys`
+- `changeBackupKey`
+- `revokeTempKey`
+- `setFeePolicy`
+- `setTokenFeePolicy`
+- `setSecurityPolicy`
+- `transferSplToken`
+- `calculateFee`
+
+#### 2.2.2 TempKeyManager
+
+Handles generation, registration, verification, and revocation of temporary and backup keys.
+
+#### 2.2.3 UserAccountManager
+
+Manages user accounts and asset functionalities.
+
+## 3. Main Processes
+
+### 3.1 Temporary & Backup Key Registration
+
+```mermaid
+sequenceDiagram
+    Client->>UXAA_SDK: registerTempKeys()
+    UXAA_SDK->>TempKeyManager: registerTempKeys()
+    TempKeyManager->>AA_Relay: register_temp_keys()
+    AA_Relay-->>TempKeyManager: Transaction response
+    TempKeyManager-->>UXAA_SDK: AuthData
+    UXAA_SDK-->>Client: AuthData
+```
+
+### 3.2 SPL Token Transfer
+
+```mermaid
+sequenceDiagram
+    Client->>UXAA_SDK: transferSplToken()
+    UXAA_SDK->>AA_Relay: transfer_spl_token()
+    AA_Relay->>SPL: Execute token transfer
+    SPL-->>AA_Relay: Transfer result
+    AA_Relay-->>UXAA_SDK: Transaction response
+    UXAA_SDK-->>Client: Transaction signature
+```
+
+### 3.3 Transaction Relay
+
+```mermaid
+sequenceDiagram
+    Client->>UXAA_SDK: executeWithFeePayer()
+    UXAA_SDK->>TempKeyManager: relayTransactionWithFeePayer()
+    TempKeyManager->>AA_Relay: relay_transaction()
+    AA_Relay->>UserAccount: execute_transaction()
+    UserAccount->>Service: Invoke service
+    Service-->>UserAccount: Result
+    UserAccount-->>AA_Relay: Result
+    AA_Relay-->>TempKeyManager: Transaction response
+    TempKeyManager-->>UXAA_SDK: Transaction signature
+    UXAA_SDK-->>Client: Transaction signature
+```
+
+## 4. Detailed Features
+
+### 4.1 Account Abstraction
+- Temporary keys with expiration.
+- Permanent backup keys.
+- Transaction relays verified via keys.
+
+### 4.2 SPL Token Support
+- Secure token transfers with automated fee application.
+- Automatic Associated Token Account (ATA) creation.
+
+### 4.3 Customizable Fee Policies
+- Basic fee settings for SOL and tokens.
+- Token-specific fee customization.
+- Automated fee calculation and distribution.
+
+### 4.4 Security Policies
+- Daily transaction and amount limits.
+- Function-level access control.
+- Automatic policy resets daily.
+
+## 5. PDA Structure
+
+- **Key Mapping PDA**: Temporary and backup key management.
+- **Fee Policy PDA**: Default fee configuration.
+- **Token Fee Policy PDA**: Token-specific fee management.
+- **Security Policy PDA**: User-specific security settings.
+- **User Account PDA**: Stores user account data.
+
+## 6. Installation & Usage
+
+### 6.1 Requirements
+- Solana CLI
+- Node.js with NPM/Yarn
+- Anchor Framework
+
+### 6.2 Installation
+```bash
+git clone https://github.com/your-username/uxaa.git
+cd uxaa
+yarn install
+anchor build
+```
+
+### 6.3 Deployment
+```bash
+anchor deploy --provider.cluster devnet
+```
+
+### 6.4 Example Execution
+```bash
+ts-node app/examples/fee-example.ts
+```
+
+## 7. Conclusion
+
+UXAA significantly improves user interactions with Solana blockchain applications by providing secure, user-friendly, and highly customizable account abstraction features, supporting seamless transactions and asset management.
+
+
+
 
 # UXAA(User eXperience Account Abstraction) 기술 문서
 

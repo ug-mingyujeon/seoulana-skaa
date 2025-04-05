@@ -1,3 +1,149 @@
+# UXAA (User eXperience Account Abstraction) Design for Solana
+
+This document outlines a comprehensive design for implementing User eXperience-focused Account Abstraction (UXAA) on Solana-based decentralized applications (dApps), utilizing session keys for seamless transaction handling. UXAA extends beyond basic session key implementations by prioritizing enhanced user experience (UX).
+
+---
+
+## Table of Contents
+
+1. [Overview and System Architecture](#1-overview-and-system-architecture)
+2. [On-chain Implementation (Solana + Anchor)](#2-on-chain-implementation-solana--anchor)
+3. [Off-chain Components (TypeScript + Node.js)](#3-off-chain-components-typescript--nodejs)
+4. [Session Expiration and Revocation](#4-session-expiration-and-revocation)
+5. [Security Considerations](#5-security-considerations)
+6. [Performance and Optimization](#6-performance-and-optimization)
+7. [Example Code & Summary](#7-example-code--summary)
+
+---
+
+## 1. Overview and System Architecture
+
+### System Diagram
+
+```
+[Off-chain]
+- User (Main Key, Session Key)
+- Backend (Node.js)
+
+[On-chain]
+- AA Relay Contract
+- User Account Contract
+- Service Contract
+
+User → Backend: Generate session key & sign proof
+Backend → AA Relay Contract: Register session transaction
+User → AA Relay Contract: Submit session-key transaction
+AA Relay → User Account Contract: CPI call
+User Account → Service Contract: CPI call
+```
+
+### Core Components
+- **Main Wallet**: Original user wallet, managing session keys.
+- **Session Key**: Temporary keys enabling fast, popup-free transactions for enhanced UX.
+- **AA Relay Contract**: Manages session keys and transaction routing.
+- **User Account Contract**: Intermediary for invoking business logic.
+- **Service Contract**: Executes actual business logic.
+
+---
+
+## 2. On-chain Implementation (Solana + Anchor)
+
+### Primary Functions
+- Session Registration (`registerSessionKey`)
+- Transaction Relay (`relayTransaction`)
+- Session Revocation (`revokeSession`)
+
+### PDA Design
+- SessionAccount PDA seeds: `["session", user_main_pubkey, session_pubkey]`
+- UserAccount PDA seeds: `["user_account", user_main_pubkey]`
+
+---
+
+## 3. Off-chain Components (TypeScript + Node.js)
+
+### Session Key Generation & Registration
+- Client: Generates session key and signs with main wallet.
+- Server: Verifies signature and registers the session.
+
+### Session Transaction Flow
+- Transactions signed with session keys are submitted to the AA Relay Contract.
+
+---
+
+## 4. Session Expiration and Revocation
+
+- On-chain: Checks expiration and revocation status.
+- Off-chain: Periodically scans and automatically revokes expired sessions.
+
+---
+
+## 5. Security Considerations
+
+- Preventing key theft: Minimal permissions, short sessions, rapid revocation.
+- Replay attack prevention: Nonce validation, blockhash checks.
+- Unauthorized access prevention: Signer verification and usage monitoring.
+
+---
+
+## 6. Performance and Optimization
+
+- Simplified PDA structure for efficient session management.
+- Optimized compute budget utilization.
+- Strategic Fee Payer assignment (service provider or main wallet).
+
+---
+
+## 7. Example Code & Summary
+
+### Anchor Example (Rust)
+
+```rust
+use anchor_lang::prelude::*;
+
+declare_id!("FakedProgram1111111111111111111111111111111");
+
+#[program]
+mod uxaa_session {
+    use super::*;
+
+    pub fn register_session_key(ctx: Context<RegisterSession>, session_pubkey: Pubkey, expires_at: i64) -> Result<()> {
+        ctx.accounts.process(session_pubkey, expires_at)
+    }
+
+    pub fn relay_transaction(ctx: Context<RelayTransaction>, target_program_id: Pubkey, func_id: u8, params: Vec<u8>) -> Result<()> {
+        ctx.accounts.process(target_program_id, func_id, params)
+    }
+
+    pub fn revoke_session(ctx: Context<RevokeSession>) -> Result<()> {
+        ctx.accounts.process()
+    }
+}
+```
+
+### TypeScript Example
+
+```typescript
+import { Keypair } from '@solana/web3.js';
+import { Program, AnchorProvider } from '@project-serum/anchor';
+
+const sessionKey = Keypair.generate();
+
+await program.methods.registerSessionKey(
+  sessionKey.publicKey,
+  expiresAt
+).accounts({
+  userMain: wallet.publicKey,
+}).rpc();
+```
+
+---
+
+## Conclusion
+
+Implementing **UXAA (User eXperience Account Abstraction)** on Solana enhances dApp usability by creating a secure, efficient, and highly user-friendly transaction environment.
+
+
+
 # UXAA (User eXperience Account Abstraction) 설계 - Solana 기반
 
 본 문서는 Solana 기반 dApp에서 **사용자 경험(UX)을 최적화한 계정 추상화(Account Abstraction)**를 구현하기 위한 온체인/오프체인 구조 및 세션키 기반의 트랜잭션 처리 방안을 제공합니다. 기존의 단순 세션 키 제공 방식을 넘어서 사용자 친화적인 UX를 강조하는 방향으로 확장하였습니다.
