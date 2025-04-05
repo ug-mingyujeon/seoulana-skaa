@@ -6,6 +6,6 @@ export default {
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'random',
-    expiresIn: 86400 // 1 day in seconds
+    expiresIn: 3600 // 1 hour in seconds
   }
 }; 

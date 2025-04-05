@@ -4,17 +4,17 @@ This backend server provides OAuth2 authentication with Google and Solana sessio
 
 ```mermaid
 graph TD
-    Client[Client Application] --> |1. Google OAuth2 Login| Auth[Authentication Service]
-    Auth --> |2. Verify Token| Google[Google OAuth API]
-    Auth --> |3. Create JWT Token| JWT[JWT Service]
-    Client --> |4. JWT Token| Protected[Protected Routes]
-    Protected --> |5. Auth Middleware| UserData[User Data]
+    Client[Client Application] --> |Google OAuth2 Login| Auth[Authentication Service]
+    Auth --> |Verify Token| Google[Google OAuth API]
+    Auth --> |Create JWT Token| JWT[JWT Service]
+    Client --> |JWT Token| Protected[Protected Routes]
+    Protected --> |Auth Middleware| UserData[User Data]
     
-    Client --> |6. Register Session Key| SessionService[Session Key Service]
-    SessionService --> |7. Store| Database[(SQLite Database)]
-    Client --> |8. Verify Session Key| SessionService
-    Client --> |9. Relay Transaction| TransactionService[Transaction Service]
-    TransactionService --> |10. Send to Blockchain| Solana[Solana Blockchain]
+    Client --> |Register Session Key| SessionService[Session Key Service]
+    SessionService --> |Store| Database
+    Client --> |Verify Session Key| SessionService
+    Client --> |Relay Transaction| TransactionService[Transaction Service]
+    TransactionService --> |Send to Blockchain| Solana[Solana Blockchain]
     
     subgraph Backend Server
         Auth
@@ -28,32 +28,10 @@ graph TD
 
 ## Features
 
-- **OAuth2 Authentication with Google**: Secure user authentication using Google Sign-In
+- **OAuth2 Authentication**: Secure user authentication using OAuth2 provider like Google
 - **JWT Token-based Authorization**: Stateless authorization using JSON Web Tokens
 - **Solana Session Key Management**: Register, verify, and revoke Solana session keys
 - **Transaction Relay**: Relay transactions to the Solana blockchain using session keys
-- **API Documentation**: Swagger UI for API exploration and testing
-
-## Architecture
-
-The backend follows a modular architecture with clear separation of concerns:
-
-- **Controllers**: Handle HTTP requests and responses
-- **Services**: Implement business logic
-- **Models**: Manage data persistence and database operations
-- **Middleware**: Provide cross-cutting functionality like authentication
-- **Utils**: Contain utility functions for Solana interactions and other operations
-- **Config**: Store application configuration
-
-## Technologies
-
-- **Node.js & Express**: Fast, unopinionated web framework
-- **TypeScript**: Type-safe JavaScript
-- **SQLite**: Lightweight relational database
-- **@solana/web3.js & @project-serum/anchor**: Solana blockchain interaction
-- **jsonwebtoken**: JWT token generation and verification
-- **google-auth-library**: Google OAuth2 authentication
-- **Swagger**: API documentation
 
 ## Setup
 
@@ -125,20 +103,18 @@ API documentation is available at `/api-docs` when the server is running.
 
 ## Security Considerations
 
-- JWT tokens expire after 24 hours
+- JWT tokens expire after 1 hours
 - Session keys can be revoked manually or automatically expire based on configuration
 - CORS is configured to restrict access to approved origins
 - All sensitive operations are authenticated and authorized
 - Solana transaction signing follows best practices
 
-## License
+## Future Enhancements
 
-MIT License
+The Session Key Management server can be extended to handle different configurations for each client, including:
 
-## Contributing
+- **Customizable Expense Limits**: Set maximum transaction amounts per session key
+- **Flexible Expiry Times**: Configure different session validity periods based on client requirements
+- **Threshold-Based Authorization**: Implement transaction value thresholds that require manual signing for higher-value transactions
 
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -am 'Add my feature'`
-4. Push to the branch: `git push origin feature/my-feature`
-5. Submit a pull request 
+These enhancements would allow us to provide a seamless, signature-less experience for users while simultaneously accommodating the specific policy requirements of different client applications.
