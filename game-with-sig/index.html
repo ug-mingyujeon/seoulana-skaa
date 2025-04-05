@@ -433,7 +433,7 @@
                 const top = window.screenY + (window.outerHeight - height) / 2;
                 
                 const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`;
-                customWalletWindow = window.open('http://localhost:9000/auth/google', 'googleLogin', features);
+                customWalletWindow = window.open('http://localhost:3000/auth/google', 'googleLogin', features);
                 
                 if (!customWalletWindow) {
                     throw new Error('팝업 창이 차단되었습니다. 팝업 차단을 해제해주세요.');
@@ -457,7 +457,7 @@
             console.log("메시지 수신:", event.origin, event.data);
             
             // localhost:9000에서 온 메시지만 처리
-            if (event.origin !== 'http://localhost:9000') {
+            if (event.origin !== 'http://localhost:3000') {
                 return;
             }
             
