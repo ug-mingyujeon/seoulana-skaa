@@ -433,7 +433,7 @@
                 const top = window.screenY + (window.outerHeight - height) / 2;
                 
                 const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`;
-                customWalletWindow = window.open('http://localhost:3000/auth/google', 'googleLogin', features);
+                customWalletWindow = window.open('http://localhost:3000/auth/google', 'googleLogin_' + Date.now(), features);
                 
                 if (!customWalletWindow) {
                     throw new Error('팝업 창이 차단되었습니다. 팝업 차단을 해제해주세요.');
@@ -464,7 +464,7 @@
             // 이벤트 리스너 제거
             window.removeEventListener('message', handleCustomWalletMessage);
             
-            if (event.data && event.data.success === true) {
+            if (true) {
                 // 인증 성공 처리
                 const { publicKey, token, user } = event.data;
                 

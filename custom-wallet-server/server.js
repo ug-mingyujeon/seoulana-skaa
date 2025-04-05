@@ -93,7 +93,10 @@ passport.use(new GoogleStrategy({
 
 // Authentication routes
 app.get('/auth/google', 
-  passport.authenticate('google', { scope: ['profile', 'email'] })
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    prompt: 'select_account' // Force Google account selection screen
+  })
 );
 
 app.post('/auth/google', (req, res) => {
@@ -199,12 +202,10 @@ app.get('/auth/google/callback',
         <div class="success-container">
           <h2>인증 성공!</h2>
           <p>Google 로그인이 성공적으로 완료되었습니다.</p>
-          <p>사용자: ${req.user.displayName}</p>
-          <p>이메일: ${req.user.email}</p>
           <p>지갑 주소:</p>
           <div class="wallet-key">${req.user.wallet.publicKey}</div>
-          <p>쿠키 설정됨: user_email, game_user_email (24시간 유효)</p>
           <p>이 창은 자동으로 닫히고 게임으로 돌아갑니다.</p>
+          <button onclick="window.close()">닫기</button>
         </div>
       </body>
       </html>
