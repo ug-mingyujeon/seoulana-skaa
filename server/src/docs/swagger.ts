@@ -55,10 +55,17 @@ const options = {
             }
           }
         }
+      },
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        }
       }
     }
   },
-  apis: ['./src/controllers/*.ts'] // 컨트롤러에 작성된 JSDoc 주석을 통해 API 문서화
+  apis: ['./src/controllers/*.ts', './src/routes/*.ts'] // Include both controllers and routes
 };
 
 const specs = swaggerJsdoc(options);

@@ -6,6 +6,13 @@ const router = express.Router();
 
 /**
  * @swagger
+ * tags:
+ *   name: Auth
+ *   description: Authentication endpoints
+ */
+
+/**
+ * @swagger
  * /auth/google:
  *   post:
  *     summary: Authenticate with Google token
@@ -25,6 +32,25 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: JWT authentication token
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     displayName:
+ *                       type: string
+ *                     photo:
+ *                       type: string
  *       401:
  *         description: Authentication failed
  */
