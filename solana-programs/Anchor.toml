@@ -1,0 +1,33 @@
+[features]
+seeds = false
+skip-lint = false
+single_program_deploy = false
+
+[programs.localnet]
+uxaa = "B3iHitcqXfADEeDozkuu4KnWs4PqKPFNQhPWRan1v7o9"
+aa_relay = "Dv9qDFdwsHpzcNZ7KxJgChV7yzAnMjTFDYp5JGCkzKvL"
+user_account = "G6p3b6vh9YcXrwKrGzkmHxh9ynDVvCbx2ShRGamofrL4"
+service = "7KqV2XtaEgLxRKH4PMXZfnqHbS4EpKQ5wMYSLF5xEf3k"
+
+[programs.devnet]
+uxaa = "B3iHitcqXfADEeDozkuu4KnWs4PqKPFNQhPWRan1v7o9"
+aa_relay = "Dv9qDFdwsHpzcNZ7KxJgChV7yzAnMjTFDYp5JGCkzKvL"
+user_account = "G6p3b6vh9YcXrwKrGzkmHxh9ynDVvCbx2ShRGamofrL4"
+service = "7KqV2XtaEgLxRKH4PMXZfnqHbS4EpKQ5wMYSLF5xEf3k"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test]
+startup_wait = 10000
+
+[dependencies]
+anchor-spl = "0.26.0"
+solana-program = "1.14.13"

@@ -1,0 +1,503 @@
+use anchor_lang::prelude::*;
+declare_id!("G6p3b6vh9YcXrwKrGzkmHxh9ynDVvCbx2ShRGamofrL4");
+
+pub mod user_account {
+    use super::*;
+
+    /// 에러 코드
+    #[error_code]
+    pub enum ErrorCode {
+        #[msg("권한이 없습니다")]
+        Unauthorized,
+        
+        #[msg("계정이 일시중지되었습니다")]
+        AccountPaused,
+        
+        #[msg("임시 키가 이미 철회되었습니다")]
+        AlreadyRevoked,
+        
+        #[msg("잔액이 부족합니다")]
+        InsufficientFunds,
+        
+        #[msg("토큰을 찾을 수 없습니다")]
+        TokenNotFound,
+        
+        #[msg("토큰이 이미 등록되었습니다")]
+        TokenAlreadyRegistered,
+        
+        #[msg("유효하지 않은 함수 ID입니다")]
+        InvalidFunctionId,
+        
+        #[msg("유효하지 않은 파라미터입니다")]
+        InvalidParameters,
+        
+        #[msg("계산 오류가 발생했습니다")]
+        CalculationError,
+        
+        #[msg("유효하지 않은 수수료 설정입니다")]
+        InvalidFeeSettings,
+    }
+
+    /// 사용자 계정 초기화 함수
+    /// 
+    /// * `aa_relay_program` - AA 중계 프로그램 ID
+    /// * `user_id` - 사용자 고유 식별자 (오프체인에서 관리)
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        aa_relay_program: Pubkey,
+        user_id: String,
+    ) -> Result<()> {
+        let user_account = &mut ctx.accounts.user_account;
+        
+        // 사용자 계정 데이터 초기화
+        user_account.creator = ctx.accounts.creator.key();
+        user_account.user_id = user_id;
+        user_account.aa_relay_program = aa_relay_program;
+        user_account.created_at = Clock::get()?.unix_timestamp;
+        user_account.transaction_count = 0;
+        user_account.paused = false;
+        user_account.sol_balance = 0;
+        user_account.tokens = Vec::new();
+        
+        // 수수료 설정 초기화 (기본값: 1%)
+        user_account.fee_settings = FeeSettings {
+            fee_collector: ctx.accounts.creator.key(),
+            sol_fee_basis_points: 100, // 1%
+            token_fee_basis_points: 100, // 1%
+            min_fee_amount: 0,
+        };
+        
+        msg!("사용자 계정이 초기화되었습니다. 사용자 ID: {}", user_account.user_id);
+        Ok(())
+    }
+
+    /// 서비스 프로그램 호출 실행 함수 (AA 릴레이로부터 직접 호출)
+    /// 
+    /// * `function_id` - 호출할 함수 ID
+    /// * `params` - 함수에 전달할 파라미터
+    pub fn execute_transaction(
+        ctx: Context<ExecuteTransaction>,
+        function_id: u8,
+        params: Vec<u8>,
+    ) -> Result<()> {
+        let user_account = &mut ctx.accounts.user_account;
+        
+        // 계정이 일시중지 상태가 아닌지 확인
+        require!(!user_account.paused, ErrorCode::AccountPaused);
+        
+        // AA 릴레이 프로그램으로부터 호출되었는지 확인
+        require!(
+            ctx.accounts.caller_program.key() == user_account.aa_relay_program,
+            ErrorCode::Unauthorized
+        );
+        
+        // 트랜잭션 카운트 증가
+        user_account.transaction_count += 1;
+        
+        // 함수 ID에 따라 적절한 함수 호출 (내부에서 모든 로직 처리)
+        match function_id {
+            0 => handle_transfer_token(user_account, &params),
+            1 => handle_register_token(user_account, &params),
+            2 => handle_create_swap(user_account, &params),
+            _ => Err(ErrorCode::InvalidFunctionId.into()),
+        }?;
+        
+        msg!("트랜잭션 실행 성공. 함수: {}", function_id);
+        Ok(())
+    }
+
+    /// 사용자 계정 일시중지/재개 함수
+    pub fn toggle_pause(ctx: Context<AdminOperation>) -> Result<()> {
+        let user_account = &mut ctx.accounts.user_account;
+        
+        // 관리자 권한 검증 (이 예제에서는 생성자만 가능)
+        require!(
+            ctx.accounts.authority.key() == user_account.creator,
+            ErrorCode::Unauthorized
+        );
+        
+        // 상태 토글
+        user_account.paused = !user_account.paused;
+        
+        if user_account.paused {
+            msg!("사용자 계정이 일시중지되었습니다");
+        } else {
+            msg!("사용자 계정이 재개되었습니다");
+        }
+        
+        Ok(())
+    }
+
+    /// 토큰 잔액 추가 (테스트용)
+    pub fn add_token_balance(
+        ctx: Context<AdminOperation>,
+        token_mint: Pubkey,
+        amount: u64,
+    ) -> Result<()> {
+        let user_account = &mut ctx.accounts.user_account;
+        
+        // 관리자 권한 검증
+        require!(
+            ctx.accounts.authority.key() == user_account.creator,
+            ErrorCode::Unauthorized
+        );
+        
+        // 토큰 검색 또는 새로 추가
+        let token = user_account.tokens.iter_mut().find(|t| t.mint == token_mint);
+        
+        if let Some(token) = token {
+            // 기존 토큰 잔액 업데이트
+            token.balance += amount;
+        } else {
+            // 새 토큰 추가
+            user_account.tokens.push(TokenBalance {
+                mint: token_mint,
+                balance: amount,
+                name: "".to_string(),
+            });
+        }
+        
+        msg!("토큰 잔액이 추가되었습니다. 토큰: {}, 금액: {}", token_mint, amount);
+        Ok(())
+    }
+    
+    /// 수수료 설정 업데이트 (관리자만 가능)
+    pub fn update_fee_settings(
+        ctx: Context<AdminOperation>,
+        fee_collector: Pubkey,
+        sol_fee_basis_points: u16,
+        token_fee_basis_points: u16,
+        min_fee_amount: u64,
+    ) -> Result<()> {
+        let user_account = &mut ctx.accounts.user_account;
+        
+        // 관리자 권한 검증
+        require!(
+            ctx.accounts.authority.key() == user_account.creator,
+            ErrorCode::Unauthorized
+        );
+        
+        // 수수료가 너무 높지 않은지 확인 (최대 10%)
+        require!(
+            sol_fee_basis_points <= 1000 && token_fee_basis_points <= 1000,
+            ErrorCode::InvalidFeeSettings
+        );
+        
+        // 수수료 설정 업데이트
+        user_account.fee_settings = FeeSettings {
+            fee_collector,
+            sol_fee_basis_points,
+            token_fee_basis_points,
+            min_fee_amount,
+        };
+        
+        msg!("수수료 설정이 업데이트되었습니다. SOL: {}bp, 토큰: {}bp", 
+            sol_fee_basis_points, token_fee_basis_points);
+        Ok(())
+    }
+    
+    // transfer_token 로직을 옮긴 새 함수
+    fn handle_transfer_token(
+        user_account: &mut Account<UserAccountData>,
+        params: &[u8],
+    ) -> Result<()> {
+        // 파라미터 길이 검증 (최소 40바이트: 8바이트 amount + 32바이트 recipient)
+        if params.len() < 40 {
+            return Err(ErrorCode::InvalidParameters.into());
+        }
+        
+        // 데이터 파싱 최적화 (slice 직접 변환)
+        let amount = u64::from_le_bytes(params[0..8].try_into().unwrap());
+        let recipient_array: [u8; 32] = params[8..40].try_into().unwrap();
+        let _recipient = Pubkey::from(recipient_array);
+        let token_mint_bytes = params.len() >= 72;
+        
+        // 토큰 전송 처리 (SOL 또는 토큰)
+        if token_mint_bytes {
+            // 토큰 전송
+            let token_mint_array: [u8; 32] = params[40..72].try_into().unwrap();
+            let token_mint = Pubkey::from(token_mint_array);
+            
+            // 토큰 잔액 조회 (효율적 탐색)
+            let token_idx = match user_account.tokens.iter().position(|t| t.mint == token_mint) {
+                Some(idx) => idx,
+                None => return Err(ErrorCode::TokenNotFound.into()),
+            };
+            
+            // 잔액 검증
+            let token = &user_account.tokens[token_idx];
+            if token.balance < amount {
+                return Err(ErrorCode::InsufficientFunds.into());
+            }
+            
+            // 수수료 계산 (안전한 수학 연산)
+            let fee_basis_points = user_account.fee_settings.token_fee_basis_points as u64;
+            
+            // 비트 시프트로 곱셈/나눗셈 최적화
+            let fee_amount = if fee_basis_points > 0 {
+                let fee = amount.saturating_mul(fee_basis_points) / 10_000;
+                fee.max(user_account.fee_settings.min_fee_amount)
+            } else {
+                user_account.fee_settings.min_fee_amount
+            };
+            
+            // 잔액 업데이트 (불변성 고려한 단일 업데이트)
+            user_account.tokens[token_idx].balance = user_account.tokens[token_idx].balance.saturating_sub(amount);
+            
+            // 수수료 처리 (수수료가 0보다 큰 경우만)
+            if fee_amount > 0 {
+                let _fee_collector = user_account.fee_settings.fee_collector;
+                
+                // name 미리 복제
+                let token_name = user_account.tokens[token_idx].name.clone();
+                
+                // 수수료 수금자 토큰 찾기 (인덱스 재활용)
+                let collector_idx = user_account.tokens.iter().position(|t| t.mint == token_mint && t.balance > 0);
+                
+                match collector_idx {
+                    Some(idx) => {
+                        // 기존 토큰 잔액에 수수료 추가
+                        user_account.tokens[idx].balance = user_account.tokens[idx].balance.saturating_add(fee_amount);
+                    },
+                    None => {
+                        // 새 토큰 잔액 생성 (name 복사 최소화)
+                        user_account.tokens.push(TokenBalance {
+                            mint: token_mint,
+                            balance: fee_amount,
+                            name: token_name,
+                        });
+                    }
+                }
+            }
+            
+            // 로그 간소화
+            msg!("토큰 전송: {} 단위, 수수료: {}", amount.saturating_sub(fee_amount), fee_amount);
+        } else {
+            // SOL 전송
+            require!(user_account.sol_balance >= amount, ErrorCode::InsufficientFunds);
+            
+            // 수수료 계산 (basis points: 1/100 of 1%)
+            let fee_basis_points = user_account.fee_settings.sol_fee_basis_points as u64;
+            let fee_amount = amount.saturating_mul(fee_basis_points) / 10000;
+            
+            // 실제 금액에서 수수료 제외
+            let transfer_amount = amount.saturating_sub(fee_amount);
+            
+            // SOL 잔액 업데이트 (단일 연산)
+            user_account.sol_balance = user_account.sol_balance.saturating_sub(amount);
+            
+            // 로그 간소화
+            msg!("SOL 전송: {} lamports, 수수료: {}", transfer_amount, fee_amount);
+        }
+        
+        Ok(())
+    }
+    
+    fn handle_register_token(
+        user_account: &mut Account<UserAccountData>,
+        params: &[u8],
+    ) -> Result<()> {
+        // 파라미터 파싱 (token_mint: Pubkey, name: String)
+        if params.len() < 32 {
+            return Err(ErrorCode::InvalidParameters.into());
+        }
+        
+        // 토큰 민트 주소
+        let token_mint_array: [u8; 32] = params[0..32].try_into().unwrap();
+        let token_mint = Pubkey::from(token_mint_array);
+        
+        // 토큰 이름 파싱
+        let name_bytes = if params.len() > 32 {
+            &params[32..]
+        } else {
+            b""
+        };
+        
+        let token_name = match std::str::from_utf8(name_bytes) {
+            Ok(s) => s.to_string(),
+            Err(_) => return Err(ErrorCode::InvalidParameters.into()),
+        };
+        
+        // token_name 복제
+        let token_name_clone = token_name.clone();
+        
+        // 토큰 등록
+        // 이미 등록된 토큰인지 확인
+        if user_account.tokens.iter().any(|t| t.mint == token_mint) {
+            return Err(ErrorCode::TokenAlreadyRegistered.into());
+        }
+        
+        // 토큰 잔액 생성
+        user_account.tokens.push(TokenBalance {
+            mint: token_mint,
+            balance: 0,
+            name: token_name,
+        });
+        
+        // 복제된 값 사용
+        msg!("토큰이 등록되었습니다: {}, 이름: {}", token_mint, token_name_clone);
+        Ok(())
+    }
+    
+    fn handle_create_swap(
+        user_account: &mut Account<UserAccountData>,
+        params: &[u8],
+    ) -> Result<()> {
+        // 파라미터 파싱 (token_a: Pubkey, token_b: Pubkey, amount_a: u64, amount_b: u64)
+        if params.len() < 80 {
+            return Err(ErrorCode::InvalidParameters.into());
+        }
+        
+        // 토큰 A 정보
+        let token_a_array: [u8; 32] = params[0..32].try_into().unwrap();
+        let token_a = Pubkey::from(token_a_array);
+        
+        // 토큰 B 정보
+        let token_b_array: [u8; 32] = params[32..64].try_into().unwrap();
+        let token_b = Pubkey::from(token_b_array);
+        
+        // 교환 수량
+        let amount_a = u64::from_le_bytes(params[64..72].try_into().unwrap());
+        let amount_b = u64::from_le_bytes(params[72..80].try_into().unwrap());
+        
+        // 토큰 잔액 검증
+        let token_a_idx = user_account.tokens.iter()
+            .position(|t| t.mint == token_a)
+            .ok_or(ErrorCode::TokenNotFound)?;
+            
+        let token_b_idx = user_account.tokens.iter()
+            .position(|t| t.mint == token_b)
+            .ok_or(ErrorCode::TokenNotFound)?;
+            
+        // 토큰 A 잔액 체크
+        let token_a_balance = user_account.tokens[token_a_idx].balance;
+        require!(token_a_balance >= amount_a, ErrorCode::InsufficientFunds);
+        
+        // 스왑 실행 (실제로는 DEX와 연동할 수 있음)
+        // 이 예제에서는 단순히 잔액만 업데이트
+        user_account.tokens[token_a_idx].balance = token_a_balance.saturating_sub(amount_a);
+        user_account.tokens[token_b_idx].balance = user_account.tokens[token_b_idx].balance.saturating_add(amount_b);
+        
+        msg!("스왑 실행: {} {} => {} {}", 
+            amount_a, user_account.tokens[token_a_idx].name,
+            amount_b, user_account.tokens[token_b_idx].name);
+            
+        Ok(())
+    }
+}
+
+/// 수수료 설정 구조체
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+pub struct FeeSettings {
+    /// 수수료 수금자 계정
+    pub fee_collector: Pubkey,
+    /// SOL 전송 수수료 (basis points: 1/100 of 1%)
+    pub sol_fee_basis_points: u16,
+    /// 토큰 전송 수수료 (basis points: 1/100 of 1%)
+    pub token_fee_basis_points: u16,
+    /// 최소 수수료 금액
+    pub min_fee_amount: u64,
+}
+
+/// 사용자 계정 데이터 구조체
+#[account]
+pub struct UserAccountData {
+    /// 계정 생성자 (관리자 역할)
+    pub creator: Pubkey,
+    /// 사용자 고유 식별자 (오프체인에서 관리)
+    pub user_id: String,
+    /// AA 중계 프로그램 ID
+    pub aa_relay_program: Pubkey,
+    /// 생성 시각(Unix timestamp)
+    pub created_at: i64,
+    /// 트랜잭션 실행 횟수
+    pub transaction_count: u64,
+    /// 계정 일시중지 여부
+    pub paused: bool,
+    /// SOL 잔액
+    pub sol_balance: u64,
+    /// 토큰 잔액 목록
+    pub tokens: Vec<TokenBalance>,
+    /// 수수료 설정
+    pub fee_settings: FeeSettings,
+}
+
+/// 토큰 잔액 구조체
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct TokenBalance {
+    /// 토큰 민트 주소
+    pub mint: Pubkey,
+    /// 토큰 잔액
+    pub balance: u64,
+    /// 토큰 이름
+    pub name: String,
+}
+
+/// 계정 초기화 명령어 계정 구조체
+#[derive(Accounts)]
+#[instruction(aa_relay_program: Pubkey, user_id: String)]
+pub struct Initialize<'info> {
+    /// 생성자(서명자), 관리자 역할
+    #[account(mut)]
+    pub creator: Signer<'info>,
+    
+    /// 사용자 계정(PDA)
+    #[account(
+        init,
+        payer = creator,
+        seeds = [b"user_account", user_id.as_bytes()],
+        bump,
+        space = 8 + // 디스크리미네이터
+               32 + // creator: Pubkey
+               4 + user_id.len() + // user_id: String (길이 헤더 + 데이터)
+               32 + // aa_relay_program: Pubkey
+               8 + // created_at: i64
+               8 + // transaction_count: u64
+               1 + // paused: bool
+               8 + // sol_balance: u64
+               
+               // tokens: Vec<TokenBalance> - 초기 용량 10개 가정
+               4 + (10 * (
+                   32 + // mint: Pubkey
+                   8 +  // balance: u64
+                   4 + 10  // name: String (평균 10바이트 가정)
+               )) +
+               
+               // fee_settings: FeeSettings
+               32 + // fee_collector: Pubkey
+               2 +  // sol_fee_basis_points: u16
+               2 +  // token_fee_basis_points: u16
+               8    // min_fee_amount: u64
+    )]
+    pub user_account: Account<'info, UserAccountData>,
+    
+    /// 시스템 프로그램
+    pub system_program: Program<'info, System>,
+}
+
+/// 트랜잭션 실행 명령어 계정 구조체
+#[derive(Accounts)]
+pub struct ExecuteTransaction<'info> {
+    /// 임시 키 서명자
+    pub temp_key_signer: Signer<'info>,
+    
+    /// 호출자 프로그램 (AA 중계 컨트랙트)
+    /// CHECK: 이 계정은 호출자 프로그램 ID를 확인하는 용도로만 사용됩니다.
+    pub caller_program: AccountInfo<'info>,
+    
+    /// 사용자 계정 (PDA)
+    #[account(mut)]
+    pub user_account: Account<'info, UserAccountData>,
+}
+
+/// 관리자 전용 명령어 계정 구조체
+#[derive(Accounts)]
+pub struct AdminOperation<'info> {
+    /// 권한을 가진 서명자 (관리자)
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    /// 사용자 계정
+    #[account(mut)]
+    pub user_account: Account<'info, UserAccountData>,
+}

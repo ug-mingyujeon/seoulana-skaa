@@ -1,0 +1,151 @@
+{
+  "version": "0.1.0",
+  "name": "aa_relay",
+  "instructions": [
+    {
+      "name": "registerSessionKey",
+      "accounts": [
+        {
+          "name": "userMain",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "sessionAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "sessionPubkey",
+          "type": "publicKey"
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "relayTransaction",
+      "accounts": [
+        {
+          "name": "userMain",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "sessionAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userAccount",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "sessionSigner",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "targetProgramId",
+          "type": "publicKey"
+        },
+        {
+          "name": "functionId",
+          "type": "u8"
+        },
+        {
+          "name": "params",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "revokeSession",
+      "accounts": [
+        {
+          "name": "userMain",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "sessionAccount",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "SessionAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "userMain",
+            "type": "publicKey"
+          },
+          {
+            "name": "sessionKey",
+            "type": "publicKey"
+          },
+          {
+            "name": "expiresAt",
+            "type": "i64"
+          },
+          {
+            "name": "isRevoked",
+            "type": "bool"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "userMain",
+            "type": "publicKey"
+          },
+          {
+            "name": "initialized",
+            "type": "bool"
+          },
+          {
+            "name": "authorizedPrograms",
+            "type": {
+              "vec": "publicKey"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "address": "AaReLaY111111111111111111111111111111111"
+  }
+} 
