@@ -1,0 +1,161 @@
+{
+    "version": "0.1.0",
+    "name": "session_auth",
+    "instructions": [
+        {
+            "name": "registerSessionKey",
+            "accounts": [
+                {
+                    "name": "userMain",
+                    "isMut": true,
+                    "isSigner": true
+                },
+                {
+                    "name": "sessionAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "systemProgram",
+                    "isMut": false,
+                    "isSigner": false
+                }
+            ],
+            "args": [
+                {
+                    "name": "sessionKey",
+                    "type": "publicKey"
+                },
+                {
+                    "name": "expiresAt",
+                    "type": "u64"
+                }
+            ]
+        },
+        {
+            "name": "revokeSessionKey",
+            "accounts": [
+                {
+                    "name": "userMain",
+                    "isMut": false,
+                    "isSigner": true
+                },
+                {
+                    "name": "sessionAccount",
+                    "isMut": true,
+                    "isSigner": false
+                }
+            ],
+            "args": []
+        },
+        {
+            "name": "relayTransaction",
+            "accounts": [
+                {
+                    "name": "sessionAccount",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "userMain",
+                    "isMut": false,
+                    "isSigner": false
+                },
+                {
+                    "name": "targetProgram",
+                    "isMut": false,
+                    "isSigner": false
+                }
+            ],
+            "args": [
+                {
+                    "name": "targetProgramId",
+                    "type": "publicKey"
+                },
+                {
+                    "name": "functionId",
+                    "type": "u64"
+                },
+                {
+                    "name": "params",
+                    "type": {
+                        "vec": "bytes"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "closeSession",
+            "accounts": [
+                {
+                    "name": "sessionAccount",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "userMain",
+                    "isMut": true,
+                    "isSigner": false
+                },
+                {
+                    "name": "authority",
+                    "isMut": false,
+                    "isSigner": true
+                }
+            ],
+            "args": []
+        }
+    ],
+    "accounts": [
+        {
+            "name": "SessionData",
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "userMain",
+                        "type": "publicKey"
+                    },
+                    {
+                        "name": "sessionKey",
+                        "type": "publicKey"
+                    },
+                    {
+                        "name": "expiresAt",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "isRevoked",
+                        "type": "bool"
+                    },
+                    {
+                        "name": "bump",
+                        "type": "u8"
+                    }
+                ]
+            }
+        }
+    ],
+    "errors": [
+        {
+            "code": 6000,
+            "name": "SessionExpired",
+            "msg": "Session has expired"
+        },
+        {
+            "code": 6001,
+            "name": "SessionRevoked",
+            "msg": "Session has been revoked"
+        },
+        {
+            "code": 6002,
+            "name": "InvalidSession",
+            "msg": "Invalid session"
+        },
+        {
+            "code": 6003,
+            "name": "Unauthorized",
+            "msg": "Unauthorized access attempt"
+        }
+    ]
+}
