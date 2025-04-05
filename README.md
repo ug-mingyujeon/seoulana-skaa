@@ -142,6 +142,28 @@ await program.methods.registerSessionKey(
 
 Implementing **UXAA (User eXperience Account Abstraction)** on Solana enhances dApp usability by creating a secure, efficient, and highly user-friendly transaction environment.
 
+---
+
+## Demo Execution Method
+
+1. Local Server Execution:
+   ```bash
+   npx http-server .
+   ```
+
+2. Access `http://localhost:8080` in the browser
+
+3. Phantom Wallet Installation Required (https://phantom.app/)
+
+4. Demo Sequence:
+   - Wallet Connection
+   - Session Key Generation
+   - Session Key Registration
+   - Session Key Transaction Submission
+   - Session Key Revocation
+
+Note: The demo runs on the Solana Devnet.
+
 
 
 # UXAA (User eXperience Account Abstraction) 설계 - Solana 기반
@@ -287,4 +309,26 @@ await program.methods.registerSessionKey(
 ## 결론
 
 **UXAA (User eXperience Account Abstraction)** 설계를 통해 Solana 기반 dApp에서 UX를 중점으로 한 계정 추상화를 구현하여 사용자 친화적이며 효율적이고 안전한 트랜잭션 환경을 제공합니다.
+
+---
+
+## 데모 실행 방법
+
+1. 로컬 서버 실행:
+   ```bash
+   npx http-server .
+   ```
+
+2. 브라우저에서 `http://localhost:8080` 접속
+
+3. Phantom 지갑 설치 필요 (https://phantom.app/)
+
+4. 데모 순서:
+   - 지갑 연결
+   - 세션 키 생성
+   - 세션 키 등록
+   - 세션 키로 트랜잭션 전송
+   - 세션 키 철회
+
+참고: 데모는 Solana Devnet에서 실행됩니다.
 
