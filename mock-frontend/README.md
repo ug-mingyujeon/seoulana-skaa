@@ -2,7 +2,7 @@
 
 This is a simple mock frontend application for testing Google OAuth2 authentication with our backend server.
 
-![Google OAuth2 Login Test Screenshot](screenshot.png)
+![Google OAuth2 Login Test Screenshot](https://github.com/user-attachments/assets/a047e868-1aa2-4d04-a802-948562f51f7a)
 
 ## Features
 
