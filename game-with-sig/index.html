@@ -334,6 +334,7 @@
                     <button id="connect-solflare-button" class="difficulty-button">솔플레어 지갑 연결</button>
                     <button id="connect-slope-button" class="difficulty-button">슬로프 지갑 연결</button>
                     <button id="wallet-adapter-button" class="difficulty-button" style="background-color: rgba(50, 100, 255, 0.7); border-color: #3264ff;">모든 지갑 보기</button>
+                    <button id="connect-custom-button" class="difficulty-button" style="background-color: rgba(220, 60, 40, 0.7); border-color: #dc3c28;">SKAA 지갑</button>
                     <button id="connect-test-button" class="difficulty-button">테스트 모드로 진행</button>
                 </div>
                 <p id="wallet-error-message" style="color: #ff0000; font-size: 12px; margin-top: 10px;"></p>
@@ -415,6 +416,175 @@
         let walletAdapters = [];
         let availableWallets = [];
         let walletProviders = {};
+
+        // 커스텀 지갑 관련 변수
+        let customWalletWindow = null;
+        
+        // 커스텀 지갑 연결 함수
+        async function connectCustomWallet() {
+            console.log("커스텀 지갑 연결 시도 (구글 로그인)...");
+            walletErrorMessage.textContent = "";
+            
+            try {
+                // 팝업 창 열기
+                const width = 500;
+                const height = 600;
+                const left = window.screenX + (window.outerWidth - width) / 2;
+                const top = window.screenY + (window.outerHeight - height) / 2;
+                
+                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`;
+                customWalletWindow = window.open('http://localhost:9000/auth/google', 'googleLogin', features);
+                
+                if (!customWalletWindow) {
+                    throw new Error('팝업 창이 차단되었습니다. 팝업 차단을 해제해주세요.');
+                }
+                
+                // 로그인 진행 중 메시지 표시
+                showMintStatus("구글 로그인 진행 중...", "yellow");
+                
+                // 메시지 이벤트 리스너 등록
+                window.addEventListener('message', handleCustomWalletMessage);
+                
+            } catch (err) {
+                console.error("커스텀 지갑 연결 오류:", err);
+                walletErrorMessage.textContent = err.message || "지갑 연결에 실패했습니다.";
+                showMintStatus("지갑 연결 실패", "red");
+            }
+        }
+        
+        // 커스텀 지갑 메시지 처리 함수
+        function handleCustomWalletMessage(event) {
+            console.log("메시지 수신:", event.origin, event.data);
+            
+            // localhost:9000에서 온 메시지만 처리
+            if (event.origin !== 'http://localhost:9000') {
+                return;
+            }
+            
+            // 이벤트 리스너 제거
+            window.removeEventListener('message', handleCustomWalletMessage);
+            
+            if (event.data && event.data.success === true) {
+                // 인증 성공 처리
+                const { publicKey, token, user } = event.data;
+                
+                // 사용자 정보 로깅
+                console.log("인증된 사용자:", user.name, user.email);
+                
+                // 커스텀 지갑 객체 생성
+                const customWallet = {
+                    publicKey: {
+                        toString: () => publicKey,
+                        toBase58: () => publicKey
+                    },
+                    signTransaction: async (tx) => {
+                        console.log("커스텀 지갑: 트랜잭션 서명 요청");
+                        
+                        // 서명 테스트 표시
+                        showMintStatus("트랜잭션 서명 중...", "yellow");
+                        
+                        // 실제 게임에서는 서버로 서명 요청을 보내야 함
+                        // 이 예제에서는, 서명이 성공했다고 가정
+                        return { signedTransaction: tx };
+                    },
+                    signAllTransactions: async (txs) => {
+                        console.log("커스텀 지갑: 다중 트랜잭션 서명 요청");
+                        
+                        // 서명 테스트 표시
+                        showMintStatus("다중 트랜잭션 서명 중...", "yellow");
+                        
+                        // 실제 게임에서는 서버로 서명 요청을 보내야 함
+                        // 이 예제에서는, 서명이 성공했다고 가정
+                        return txs.map(tx => ({ signedTransaction: tx }));
+                    },
+                    connected: true,
+                    isConnected: true,
+                    userInfo: {
+                        name: user.name,
+                        email: user.email,
+                        id: user.id
+                    }
+                };
+                
+                // 지갑 연결 설정
+                wallet = customWallet;
+                walletConnected = true;
+                currentWalletType = 'custom';
+                walletButton.textContent = publicKey.substr(0, 4) + "..." + publicKey.substr(-4);
+                walletOverlay.style.display = 'none';
+                connection = new solanaWeb3.Connection("https://api.devnet.solana.com");
+                
+                // 성공 메시지 표시
+                showMintStatus("구글 로그인을 통한 지갑 연결 완료!", "green");
+                
+                console.log("커스텀 지갑 연결 완료:", publicKey);
+                
+                // 쿠키 확인
+                checkForEmailCookie();
+            } else {
+                // 인증 실패 처리
+                console.error("Google 인증 실패:", event.data?.error || "Unknown error");
+                walletErrorMessage.textContent = "Google 인증에 실패했습니다.";
+                showMintStatus("인증 실패", "red");
+            }
+        }
+        
+        // 이메일 쿠키 확인 함수
+        function checkForEmailCookie() {
+            // game_user_email 쿠키 찾기
+            const cookies = document.cookie.split(';');
+            let emailCookie = null;
+            
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith('game_user_email=')) {
+                    emailCookie = cookie.substring('game_user_email='.length, cookie.length);
+                    break;
+                }
+            }
+            
+            if (emailCookie) {
+                console.log("쿠키에서 이메일 발견:", decodeURIComponent(emailCookie));
+                
+                // 월렛 버튼에 이메일 표시 (선택사항)
+                if (wallet && wallet.userInfo) {
+                    walletButton.title = `연결된 이메일: ${decodeURIComponent(emailCookie)}`;
+                }
+                
+                // 쿠키 확인 메시지 표시
+                showMintStatus("이메일 쿠키 확인됨!", "green");
+            } else {
+                console.log("이메일 쿠키를 찾을 수 없음");
+            }
+        }
+        
+        // 이메일 쿠키 유효성 확인 함수
+        function checkEmailCookieValid() {
+            // game_user_email 쿠키 찾기
+            const cookies = document.cookie.split(';');
+            let emailCookie = null;
+            
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith('game_user_email=')) {
+                    emailCookie = cookie.substring('game_user_email='.length, cookie.length);
+                    break;
+                }
+            }
+            
+            // 쿠키가 존재하고, 값이 있는지 확인
+            if (emailCookie && emailCookie.length > 0) {
+                const email = decodeURIComponent(emailCookie);
+                
+                // 이메일 형식 검증 (간단한 정규식)
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (emailRegex.test(email)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
 
         // --- 게임 변수 (이전과 동일) ---
         let player; let bullets = []; let enemies = []; let enemyBullets = []; let particles = []; let pickups = []; let gridLines = [];
@@ -609,6 +779,16 @@
                 return;
             }
             
+            // 커스텀 지갑 사용 시 쿠키 확인
+            if (currentWalletType === 'custom') {
+                // 쿠키 확인
+                const hasValidCookie = checkEmailCookieValid();
+                if (!hasValidCookie) {
+                    showMintStatus("인증 세션 만료됨. 다시 로그인 필요", "red");
+                    return;
+                }
+            }
+            
             // 민팅 진행중 표시
             console.log("민팅 시작:", enemyType);
             mintPending = true;
@@ -701,7 +881,13 @@
                 mintedTokens++;
                 mintedTokensElement.textContent = `민팅된 토큰: ${mintedTokens}`;
                 updateMintProgress(100);
-                showMintStatus(`${tokenName} 토큰 민팅 성공!`, "green");
+                
+                // 커스텀 지갑인 경우 사용자 정보 표시
+                if (currentWalletType === 'custom' && wallet.userInfo) {
+                    showMintStatus(`${tokenName} 토큰 민팅 성공! (${wallet.userInfo.email})`, "green");
+                } else {
+                    showMintStatus(`${tokenName} 토큰 민팅 성공!`, "green");
+                }
                 
                 // 지연 후 프로그레스 바 초기화
                 setTimeout(() => {
@@ -1008,6 +1194,7 @@ this.health-=amount;triggerScreenShake(6,12);if(this.health<=0){this.health=0;ga
             walletAdapterButton.removeEventListener('click',showAllWallets);
             signApproveButton.removeEventListener('click', handleSignatureApprove);
             signRejectButton.removeEventListener('click', handleSignatureReject);
+            document.getElementById('connect-custom-button').removeEventListener('click', connectCustomWallet);
             
             // 이벤트 리스너 추가
             window.addEventListener('keydown',handleKeyDown);
@@ -1027,6 +1214,31 @@ this.health-=amount;triggerScreenShake(6,12);if(this.health<=0){this.health=0;ga
             walletAdapterButton.addEventListener('click',showAllWallets);
             signApproveButton.addEventListener('click', handleSignatureApprove);
             signRejectButton.addEventListener('click', handleSignatureReject);
+            document.getElementById('connect-custom-button').addEventListener('click', connectCustomWallet);
+            
+            // 인증 쿠키 주기적 확인 설정
+            startCookieCheckInterval();
+        }
+        
+        // 인증 쿠키 주기적 확인 함수
+        function startCookieCheckInterval() {
+            // 이미 설정된 인터벌이 있으면 제거
+            if (window.authCookieCheckInterval) {
+                clearInterval(window.authCookieCheckInterval);
+            }
+            
+            // 60초마다 쿠키 체크 (1분)
+            window.authCookieCheckInterval = setInterval(() => {
+                if (currentWalletType === 'custom' && walletConnected) {
+                    const isValid = checkEmailCookieValid();
+                    console.log("인증 쿠키 확인:", isValid ? "유효함" : "만료됨");
+                    
+                    if (!isValid) {
+                        // 쿠키가 만료되었거나 없음 - 경고 표시
+                        showMintStatus("인증 세션이 만료되었습니다. 다시 로그인 필요", "red");
+                    }
+                }
+            }, 60000); // 60초마다
         }
         
         function init() {
@@ -1168,7 +1380,7 @@ this.health-=amount;triggerScreenShake(6,12);if(this.health<=0){this.health=0;ga
                                 enemyAlive=false;
                                 
                                 // 솔라나 민팅 시도 (테스트 모드나 지갑이 연결된 경우)
-                                if(walletConnected && (currentWalletType === 'phantom' || currentWalletType === 'solflare' || currentWalletType === 'test')) {
+                                if(walletConnected && (currentWalletType === 'phantom' || currentWalletType === 'solflare' || currentWalletType === 'test' || currentWalletType === 'custom' || currentWalletType === 'slope')) {
                                     mintToken(enemy.type);
                                 } else {
                                     // 지갑이 연결되지 않은 경우 알림
